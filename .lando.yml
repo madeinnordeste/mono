@@ -1,0 +1,4 @@
+name: madeinnordeste
+recipe: laravel
+config:
+  webroot: public
