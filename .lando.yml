@@ -2,12 +2,19 @@ name: madeinnordeste
 recipe: laravel
 config:
   webroot: public
+  database: mysql
 services:
   mailhog:
     type: mailhog
     portforward: true
     hogfrom:
       - appserver
+  phpmyadmin:
+    type: phpmyadmin
+    hosts:
+      - database
 proxy:
   mailhog:
     - mailhog.madeinnordeste.lndo.site
+  phpmyadmin:
+    - phpmyadmin.madeinnordeste.lndo.site
