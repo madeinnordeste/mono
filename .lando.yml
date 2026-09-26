@@ -2,3 +2,12 @@ name: madeinnordeste
 recipe: laravel
 config:
   webroot: public
+services:
+  mailhog:
+    type: mailhog
+    portforward: true
+    hogfrom:
+      - appserver
+proxy:
+  mailhog:
+    - mailhog.madeinnordeste.lndo.site
