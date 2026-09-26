@@ -1,4 +1,24 @@
-name: madeinnordeste
+name: mono
 recipe: laravel
 config:
   webroot: public
+  database: mysql
+  cache: redis:7
+services:
+  appserver:
+    environment:
+      VIEW_COMPILED_PATH: /tmp/mono/storage/framework/views
+  mailhog:
+    type: mailhog
+    portforward: true
+    hogfrom:
+      - appserver
+  phpmyadmin:
+    type: phpmyadmin
+    hosts:
+      - database
+proxy:
+  mailhog:
+    - mailhog.mono.lndo.site
+  phpmyadmin:
+    - phpmyadmin.mono.lndo.site

@@ -19,6 +19,11 @@
         </div>
         <flux:menu.separator />
         <flux:menu.radio.group>
+            @if(Auth::user()->hasRole('admin'))
+                <flux:menu.item :href="route('users.index')" icon="users" wire:navigate>
+                    Usuários
+                </flux:menu.item>
+            @endif
             <flux:menu.item :href="route('profile.edit')" icon="cog" wire:navigate>
                 {{ __('Settings') }}
             </flux:menu.item>

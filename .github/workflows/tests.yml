@@ -1,5 +1,10 @@
 name: tests
 
+env:
+  APP_ENV: testing
+  DB_CONNECTION: sqlite
+  DB_DATABASE: ${{ github.workspace }}/database/database.sqlite
+
 on:
   push:
     branches:
@@ -11,7 +16,7 @@ permissions:
 
 jobs:
   ci:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout code
@@ -20,19 +25,52 @@ jobs:
           persist-credentials: false
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
         with:
-          php-version: '8.3'
-          tools: composer:v2
+          php-version: '8.4'
+          extensions: pdo_sqlite, sqlite3
           coverage: none
 
       - name: Setup Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
+      
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Prepare SQLite database
+        run: |
+          mkdir -p database
+          touch database/database.sqlite       
+          
+      - name: Prepare environment
+        run: cp .env.example .env
+
+      - name: Generate application key
+        run: php artisan key:generate
+
+      - name: Run migrations
+        run: php artisan migrate --force
 
       - name: Setup Application
         run: composer setup
 
       - name: Run CI Checks
         run: composer ci:check
+
+      - name: Deploy
+        env:
+          DEPLOY_URL: ${{ secrets.DEPLOY_URL }}
+        run: |
+          echo 'Deploy..'
+
+          # normaliza CRLF, descarta linhas vazias e usa a primeira linha não vazia.
+          url="$(printf '%s\n' "$DEPLOY_URL" | tr -d '\r' | awk 'NF { sub(/^[[:space:]]+/, ""); sub(/[[:space:]]+$/, ""); print; exit }')"
+
+          if [ -z "$url" ]; then
+            echo '::error::DEPLOY_URL vazio. Cadastre a URL em Settings > Secrets and variables > Actions (aba Variables) ou troque para secrets.DEPLOY_URL.'
+            exit 1
+          fi
+
+          curl --fail --silent --show-error --request GET "$url"
