@@ -4,6 +4,13 @@ config:
   webroot: public
   database: mysql
 services:
+  appserver:
+    environment:
+      # The project is bind mounted at /app inside the container but lives at a
+      # different absolute path on the host. Compiled Blade/Livewire caches embed
+      # absolute paths, so keeping them in the shared storage folder makes host
+      # and container invalidate each other's cache. Keep them container local.
+      VIEW_COMPILED_PATH: /tmp/framework/views
   mailhog:
     type: mailhog
     portforward: true

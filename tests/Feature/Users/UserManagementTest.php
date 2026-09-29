@@ -22,6 +22,7 @@ class UserManagementTest extends TestCase
     public function test_users_page_can_be_rendered(): void
     {
         $user = User::factory()->create();
+        $user->assignRole('admin');
 
         $response = $this->actingAs($user)->get(route('users.index'));
 
@@ -46,6 +47,7 @@ class UserManagementTest extends TestCase
     public function test_can_list_and_search_users(): void
     {
         $currentUser = User::factory()->create(['name' => 'Admin User', 'email' => 'admin@example.com']);
+        $currentUser->assignRole('admin');
         $john = User::factory()->create(['name' => 'John Doe', 'email' => 'john@example.com']);
         $jane = User::factory()->create(['name' => 'Jane Smith', 'email' => 'jane@example.com']);
 
@@ -62,6 +64,7 @@ class UserManagementTest extends TestCase
     public function test_can_sort_users(): void
     {
         $currentUser = User::factory()->create();
+        $currentUser->assignRole('admin');
         $this->actingAs($currentUser);
 
         Livewire::test('pages::users.index')
@@ -77,6 +80,7 @@ class UserManagementTest extends TestCase
     public function test_can_create_user(): void
     {
         $currentUser = User::factory()->create();
+        $currentUser->assignRole('admin');
         $this->actingAs($currentUser);
 
         Livewire::test('pages::users.index')
@@ -99,6 +103,7 @@ class UserManagementTest extends TestCase
     public function test_cannot_create_user_with_duplicate_email(): void
     {
         $currentUser = User::factory()->create(['email' => 'existing@example.com']);
+        $currentUser->assignRole('admin');
         $this->actingAs($currentUser);
 
         Livewire::test('pages::users.index')
@@ -114,6 +119,7 @@ class UserManagementTest extends TestCase
     public function test_can_update_user(): void
     {
         $currentUser = User::factory()->create();
+        $currentUser->assignRole('admin');
         $user = User::factory()->create([
             'name' => 'Old Name',
             'email' => 'old@example.com',
@@ -140,6 +146,7 @@ class UserManagementTest extends TestCase
     public function test_can_update_user_password_optionally(): void
     {
         $currentUser = User::factory()->create();
+        $currentUser->assignRole('admin');
         $user = User::factory()->create([
             'password' => Hash::make('old-password'),
         ]);
@@ -161,6 +168,7 @@ class UserManagementTest extends TestCase
     public function test_can_delete_user(): void
     {
         $currentUser = User::factory()->create();
+        $currentUser->assignRole('admin');
         $user = User::factory()->create();
 
         $this->actingAs($currentUser);
@@ -180,6 +188,7 @@ class UserManagementTest extends TestCase
     public function test_cannot_delete_own_account_via_users_crud(): void
     {
         $currentUser = User::factory()->create();
+        $currentUser->assignRole('admin');
 
         $this->actingAs($currentUser);
 

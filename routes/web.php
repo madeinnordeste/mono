@@ -6,6 +6,9 @@ Route::view('/', 'welcome')->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::view('dashboard', 'dashboard')->name('dashboard');
+});
+
+Route::middleware(['auth', 'verified', 'role:admin'])->group(function () {
     Route::livewire('users', 'pages::users.index')->name('users.index');
 });
 
