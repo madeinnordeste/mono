@@ -3,16 +3,24 @@
 use App\Models\User;
 use Flux\Flux;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 use Livewire\WithPagination;
+use Spatie\Permission\Models\Role;
 
 new #[Title('Users')] class extends Component {
     use WithPagination;
+
+    /**
+     * @var array<int, string>
+     */
+    private const SORTABLE_FIELDS = ['name', 'email', 'created_at'];
 
     public string $search = '';
     public string $sortField = 'name';
@@ -25,6 +33,9 @@ new #[Title('Users')] class extends Component {
     public string $password_confirmation = '';
     public bool $showUserModal = false;
 
+    /** @var array<int, string> */
+    public array $selectedRoles = [];
+
     public bool $showDeleteModal = false;
     public ?int $deletingUserId = null;
     public string $deletingUserName = '';
@@ -36,6 +47,10 @@ new #[Title('Users')] class extends Component {
 
     public function sortBy(string $field): void
     {
+        if (! in_array($field, self::SORTABLE_FIELDS, true)) {
+            return;
+        }
+
         if ($this->sortField === $field) {
             $this->sortDirection = $this->sortDirection === 'asc' ? 'desc' : 'asc';
         } else {
@@ -47,20 +62,32 @@ new #[Title('Users')] class extends Component {
     #[Computed]
     public function users(): LengthAwarePaginator
     {
+        $direction = in_array($this->sortDirection, ['asc', 'desc'], true) ? $this->sortDirection : 'asc';
+
         return User::query()
+            ->with('roles')
             ->when($this->search !== '', function ($query) {
                 $query->where(function ($q) {
                     $q->where('name', 'like', '%' . $this->search . '%')
                         ->orWhere('email', 'like', '%' . $this->search . '%');
                 });
             })
-            ->orderBy($this->sortField, $this->sortDirection)
+            ->orderBy($this->sortField, $direction)
             ->paginate(10);
+    }
+
+    #[Computed]
+    public function availableRoles(): Collection
+    {
+        return Role::query()
+            ->where('guard_name', 'web')
+            ->orderBy('name')
+            ->get();
     }
 
     public function createUser(): void
     {
-        $this->reset('userId', 'name', 'email', 'password', 'password_confirmation');
+        $this->reset('userId', 'name', 'email', 'password', 'password_confirmation', 'selectedRoles');
         $this->resetErrorBag();
         $this->showUserModal = true;
     }
@@ -74,20 +101,30 @@ new #[Title('Users')] class extends Component {
         $this->email = $user->email;
         $this->password = '';
         $this->password_confirmation = '';
+        $this->selectedRoles = $user->roles->pluck('name')->all();
         $this->resetErrorBag();
         $this->showUserModal = true;
     }
 
     public function saveUser(): void
     {
+        $roleRules = [
+            'selectedRoles' => ['array'],
+            'selectedRoles.*' => ['string', Rule::exists('roles', 'name')->where('guard_name', 'web')],
+        ];
+
         if ($this->userId) {
             $validated = $this->validate([
                 'name' => ['required', 'string', 'max:255'],
                 'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users', 'email')->ignore($this->userId)],
                 'password' => ['nullable', 'string', Password::defaults(), 'confirmed'],
+                ...$roleRules,
             ]);
 
             $user = User::findOrFail($this->userId);
+
+            $this->guardLastAdmin($user, $validated['selectedRoles']);
+
             $user->name = $validated['name'];
             $user->email = $validated['email'];
 
@@ -101,18 +138,39 @@ new #[Title('Users')] class extends Component {
                 'name' => ['required', 'string', 'max:255'],
                 'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
                 'password' => ['required', 'string', Password::defaults(), 'confirmed'],
+                ...$roleRules,
             ]);
 
-            User::create([
+            $user = User::create([
                 'name' => $validated['name'],
                 'email' => $validated['email'],
                 'password' => $validated['password'],
             ]);
         }
 
+        $validated['selectedRoles'] === []
+            ? $user->assignRole('user')
+            : $user->syncRoles($validated['selectedRoles']);
+
         Flux::toast(variant: 'success', text: __('User saved successfully.'));
 
         $this->closeUserModal();
+    }
+
+    /**
+     * @param  array<int, string>  $roles
+     */
+    protected function guardLastAdmin(User $user, array $roles): void
+    {
+        if (in_array('admin', $roles, true)) {
+            return;
+        }
+
+        if ($user->hasRole('admin') && User::role('admin')->count() <= 1) {
+            throw ValidationException::withMessages([
+                'selectedRoles' => __('At least one user must keep the admin role.'),
+            ]);
+        }
     }
 
     public function confirmDelete(int $id): void
@@ -138,6 +196,14 @@ new #[Title('Users')] class extends Component {
         }
 
         $user = User::findOrFail($this->deletingUserId);
+
+        if ($user->hasRole('admin') && User::role('admin')->count() <= 1) {
+            Flux::toast(variant: 'danger', text: __('You cannot delete the last administrator.'));
+            $this->closeDeleteModal();
+
+            return;
+        }
+
         $user->delete();
 
         Flux::toast(variant: 'success', text: __('User deleted successfully.'));
@@ -148,7 +214,7 @@ new #[Title('Users')] class extends Component {
     public function closeUserModal(): void
     {
         $this->showUserModal = false;
-        $this->reset('userId', 'name', 'email', 'password', 'password_confirmation');
+        $this->reset('userId', 'name', 'email', 'password', 'password_confirmation', 'selectedRoles');
         $this->resetErrorBag();
     }
 
@@ -184,6 +250,7 @@ new #[Title('Users')] class extends Component {
         <flux:table.columns>
             <flux:table.column sortable :sorted="$sortField === 'name'" :direction="$sortDirection" wire:click="sortBy('name')">{{ __('Name') }}</flux:table.column>
             <flux:table.column sortable :sorted="$sortField === 'email'" :direction="$sortDirection" wire:click="sortBy('email')">{{ __('Email') }}</flux:table.column>
+            <flux:table.column>{{ __('Roles') }}</flux:table.column>
             <flux:table.column sortable :sorted="$sortField === 'created_at'" :direction="$sortDirection" wire:click="sortBy('created_at')">{{ __('Created at') }}</flux:table.column>
             <flux:table.column align="end">{{ __('Actions') }}</flux:table.column>
         </flux:table.columns>
@@ -196,6 +263,15 @@ new #[Title('Users')] class extends Component {
                         <span class="font-medium text-zinc-900 dark:text-zinc-100">{{ $user->name }}</span>
                     </flux:table.cell>
                     <flux:table.cell>{{ $user->email }}</flux:table.cell>
+                    <flux:table.cell>
+                        <div class="flex flex-wrap items-center gap-1">
+                            @forelse ($user->roles as $role)
+                                <flux:badge size="sm" :color="$role->name === 'admin' ? 'red' : 'zinc'">{{ $role->name }}</flux:badge>
+                            @empty
+                                <flux:text size="sm" class="text-zinc-400">{{ __('None') }}</flux:text>
+                            @endforelse
+                        </div>
+                    </flux:table.cell>
                     <flux:table.cell>{{ $user->created_at?->format('d/m/Y H:i') }}</flux:table.cell>
                     <flux:table.cell align="end">
                         <div class="flex items-center justify-end gap-2">
@@ -221,7 +297,7 @@ new #[Title('Users')] class extends Component {
                 </flux:table.row>
             @empty
                 <flux:table.row>
-                    <flux:table.cell colspan="4" class="text-center py-8 text-zinc-500">
+                    <flux:table.cell colspan="5" class="text-center py-8 text-zinc-500">
                         {{ __('No users found.') }}
                     </flux:table.cell>
                 </flux:table.row>
@@ -279,6 +355,16 @@ new #[Title('Users')] class extends Component {
                 autocomplete="new-password"
                 viewable
             />
+
+            <flux:field>
+                <flux:label>{{ __('Roles') }}</flux:label>
+                <flux:select wire:model="selectedRoles" multiple :size="min(max(count($this->availableRoles), 2), 4)">
+                    @foreach ($this->availableRoles as $role)
+                        <flux:select.option :value="$role->name">{{ $role->name }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+                <flux:error name="selectedRoles" />
+            </flux:field>
 
             <div class="flex justify-end gap-3">
                 <flux:button

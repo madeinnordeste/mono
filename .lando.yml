@@ -9,8 +9,7 @@ services:
       # The project is bind mounted at /app inside the container but lives at a
       # different absolute path on the host. Compiled Blade/Livewire caches embed
       # absolute paths, so keeping them in the shared storage folder makes host
-      # and container invalidate each other's cache. Keep them container local.
-      VIEW_COMPILED_PATH: /tmp/framework/views
+      # and container invalidate each other's cache. Keep them container local.      
   mailhog:
     type: mailhog
     portforward: true

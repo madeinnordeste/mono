@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Livewire\Livewire;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class UserManagementTest extends TestCase
@@ -199,5 +200,183 @@ class UserManagementTest extends TestCase
         $this->assertDatabaseHas('users', [
             'id' => $currentUser->id,
         ]);
+    }
+
+    public function test_created_user_receives_default_role(): void
+    {
+        $currentUser = User::factory()->create();
+        $currentUser->assignRole('admin');
+        $this->actingAs($currentUser);
+
+        Livewire::test('pages::users.index')
+            ->call('createUser')
+            ->set('name', 'New User')
+            ->set('email', 'newuser@example.com')
+            ->set('password', 'password123')
+            ->set('password_confirmation', 'password123')
+            ->call('saveUser')
+            ->assertHasNoErrors();
+
+        $user = User::where('email', 'newuser@example.com')->firstOrFail();
+
+        $this->assertTrue($user->hasRole('user'));
+    }
+
+    public function test_can_assign_role_to_user(): void
+    {
+        $currentUser = User::factory()->create();
+        $currentUser->assignRole('admin');
+        $user = User::factory()->create();
+        $user->assignRole('user');
+
+        $this->actingAs($currentUser);
+
+        Livewire::test('pages::users.index')
+            ->call('editUser', $user->id)
+            ->assertSet('selectedRoles', ['user'])
+            ->set('selectedRoles', ['admin'])
+            ->call('saveUser')
+            ->assertHasNoErrors();
+
+        $this->assertTrue($user->refresh()->hasRole('admin'));
+        $this->assertFalse($user->hasRole('user'));
+    }
+
+    public function test_can_sync_multiple_roles_on_user(): void
+    {
+        $currentUser = User::factory()->create();
+        $currentUser->assignRole('admin');
+        $user = User::factory()->create();
+        $user->assignRole('user');
+
+        $this->actingAs($currentUser);
+
+        Livewire::test('pages::users.index')
+            ->call('editUser', $user->id)
+            ->set('selectedRoles', ['user', 'admin'])
+            ->call('saveUser')
+            ->assertHasNoErrors();
+
+        $this->assertEqualsCanonicalizing(
+            ['admin', 'user'],
+            $user->refresh()->roles->pluck('name')->all()
+        );
+    }
+
+    public function test_cannot_assign_unknown_role(): void
+    {
+        $currentUser = User::factory()->create();
+        $currentUser->assignRole('admin');
+        $user = User::factory()->create();
+        $user->assignRole('user');
+
+        $this->actingAs($currentUser);
+
+        Livewire::test('pages::users.index')
+            ->call('editUser', $user->id)
+            ->set('selectedRoles', ['superuser'])
+            ->call('saveUser')
+            ->assertHasErrors(['selectedRoles.0' => 'exists']);
+
+        $this->assertTrue($user->refresh()->hasRole('user'));
+    }
+
+    public function test_cannot_remove_admin_from_last_admin(): void
+    {
+        $currentUser = User::factory()->create();
+        $currentUser->assignRole('admin');
+
+        $this->actingAs($currentUser);
+
+        Livewire::test('pages::users.index')
+            ->call('editUser', $currentUser->id)
+            ->set('selectedRoles', ['user'])
+            ->call('saveUser')
+            ->assertHasErrors(['selectedRoles']);
+
+        $this->assertTrue($currentUser->refresh()->hasRole('admin'));
+    }
+
+    public function test_can_remove_admin_from_admin_when_another_one_remains(): void
+    {
+        $currentUser = User::factory()->create();
+        $currentUser->assignRole('admin');
+        $user = User::factory()->create();
+        $user->assignRole('admin');
+
+        $this->actingAs($currentUser);
+
+        Livewire::test('pages::users.index')
+            ->call('editUser', $user->id)
+            ->set('selectedRoles', ['user'])
+            ->call('saveUser')
+            ->assertHasNoErrors();
+
+        $this->assertFalse($user->refresh()->hasRole('admin'));
+        $this->assertTrue($user->hasRole('user'));
+    }
+
+    public function test_cannot_delete_last_admin_user(): void
+    {
+        $lastAdmin = User::factory()->create();
+        $lastAdmin->assignRole('admin');
+
+        $acting = User::factory()->create();
+        $acting->assignRole('user');
+
+        $this->actingAs($acting);
+
+        Livewire::test('pages::users.index')
+            ->call('confirmDelete', $lastAdmin->id)
+            ->call('deleteUser');
+
+        $this->assertDatabaseHas('users', ['id' => $lastAdmin->id]);
+    }
+
+    public function test_users_table_lists_assigned_roles(): void
+    {
+        $currentUser = User::factory()->create();
+        $currentUser->assignRole('admin');
+        Role::create(['name' => 'auditor', 'guard_name' => 'web']);
+        $user = User::factory()->create(['name' => 'Jane Smith']);
+        $user->assignRole('auditor');
+
+        $this->actingAs($currentUser);
+
+        Livewire::test('pages::users.index')
+            ->assertSeeText('Jane Smith')
+            ->assertSeeText('auditor')
+            ->assertSeeText('admin');
+    }
+
+    public function test_roles_selector_is_a_multi_select_bound_to_selected_roles(): void
+    {
+        $currentUser = User::factory()->create();
+        $currentUser->assignRole('admin');
+        Role::create(['name' => 'auditor', 'guard_name' => 'web']);
+
+        $this->actingAs($currentUser);
+
+        Livewire::test('pages::users.index')
+            ->call('createUser')
+            ->assertSeeHtml('wire:model="selectedRoles"')
+            ->assertSeeHtml('multiple="multiple"')
+            ->assertSeeHtml('value="auditor"')
+            ->assertSeeHtml('value="user"');
+    }
+
+    public function test_cannot_sort_users_by_non_whitelisted_field(): void
+    {
+        $currentUser = User::factory()->create();
+        $currentUser->assignRole('admin');
+        $this->actingAs($currentUser);
+
+        Livewire::test('pages::users.index')
+            ->assertSet('sortField', 'name')
+            ->call('sortBy', 'password; drop table users')
+            ->assertSet('sortField', 'name')
+            ->assertSet('sortDirection', 'asc')
+            ->call('sortBy', 'created_at')
+            ->assertSet('sortField', 'created_at');
     }
 }
