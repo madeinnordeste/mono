@@ -349,7 +349,7 @@ class UserManagementTest extends TestCase
             ->assertSeeText('admin');
     }
 
-    public function test_roles_selector_is_a_multi_select_bound_to_selected_roles(): void
+    public function test_roles_selector_is_a_checkbox_group_bound_to_selected_roles(): void
     {
         $currentUser = User::factory()->create();
         $currentUser->assignRole('admin');
@@ -359,10 +359,26 @@ class UserManagementTest extends TestCase
 
         Livewire::test('pages::users.index')
             ->call('createUser')
-            ->assertSeeHtml('wire:model="selectedRoles"')
-            ->assertSeeHtml('multiple="multiple"')
+            ->assertSeeHtml('wire:model.self="selectedRoles"')
+            ->assertSeeHtml('data-flux-checkbox-group')
             ->assertSeeHtml('value="auditor"')
             ->assertSeeHtml('value="user"');
+    }
+
+    public function test_editing_a_user_marks_the_roles_they_already_have(): void
+    {
+        $currentUser = User::factory()->create();
+        $currentUser->assignRole('admin');
+        Role::create(['name' => 'auditor', 'guard_name' => 'web']);
+        $user = User::factory()->create();
+        $user->assignRole('auditor');
+
+        $this->actingAs($currentUser);
+
+        Livewire::test('pages::users.index')
+            ->call('editUser', $user->id)
+            ->assertSet('selectedRoles', ['auditor'])
+            ->assertSeeHtml('value="auditor"');
     }
 
     public function test_cannot_sort_users_by_non_whitelisted_field(): void

@@ -356,15 +356,17 @@ new #[Title('Users')] class extends Component {
                 viewable
             />
 
-            <flux:field>
-                <flux:label>{{ __('Roles') }}</flux:label>
-                <flux:select wire:model="selectedRoles" multiple :size="min(max(count($this->availableRoles), 2), 4)">
-                    @foreach ($this->availableRoles as $role)
-                        <flux:select.option :value="$role->name">{{ $role->name }}</flux:select.option>
-                    @endforeach
-                </flux:select>
-                <flux:error name="selectedRoles" />
-            </flux:field>
+            <flux:checkbox.group
+                wire:model="selectedRoles"
+                :label="__('Roles')"
+                class="max-h-64 overflow-y-auto rounded-lg border border-zinc-200 bg-white p-3 pe-1 dark:border-white/10 dark:bg-white/10"
+            >
+                @forelse ($this->availableRoles as $role)
+                    <flux:checkbox :label="$role->name" :value="$role->name" />
+                @empty
+                    <flux:text class="text-sm text-zinc-500">{{ __('No roles available yet.') }}</flux:text>
+                @endforelse
+            </flux:checkbox.group>
 
             <div class="flex justify-end gap-3">
                 <flux:button

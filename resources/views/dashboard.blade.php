@@ -13,11 +13,6 @@
         </div>
         <div class="relative h-full flex-1 overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
             <x-placeholder-pattern class="absolute inset-0 size-full stroke-gray-900/20 dark:stroke-neutral-100/20" />
-        </div>
-        @role('admin')
-        <div class="mt-4">
-            <a href="{{ route('users.index') }}" class="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">Gerenciar Usuários</a>
-        </div>
-        @endrole
+        </div>       
     </div>
 </x-layouts::app>
