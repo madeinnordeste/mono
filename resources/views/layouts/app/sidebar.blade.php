@@ -29,6 +29,9 @@
                         <flux:sidebar.item icon="key" :href="route('permissions.index')" :current="request()->routeIs('permissions.*')" wire:navigate>
                             {{ __('Permissions') }}
                         </flux:sidebar.item>
+                        <flux:sidebar.item icon="server-stack" :href="route('horizon.index')" wire:navigate>
+                            {{ __('Queue') }}
+                        </flux:sidebar.item>
                     </flux:sidebar.group>
                 @endif
             </flux:sidebar.nav>

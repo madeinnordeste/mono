@@ -3,6 +3,7 @@ recipe: laravel
 config:
   webroot: public
   database: mysql
+  cache: redis:7
 services:
   appserver:
     environment:
