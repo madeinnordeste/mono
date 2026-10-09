@@ -1,4 +1,4 @@
-name: madeinnordeste
+name: mono
 recipe: laravel
 config:
   webroot: public
@@ -19,6 +19,6 @@ services:
       - database
 proxy:
   mailhog:
-    - mailhog.madeinnordeste.lndo.site
+    - mailhog.mono.lndo.site
   phpmyadmin:
-    - phpmyadmin.madeinnordeste.lndo.site
+    - phpmyadmin.mono.lndo.site
