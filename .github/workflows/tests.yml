@@ -42,7 +42,10 @@ jobs:
       - name: Prepare SQLite database
         run: |
           mkdir -p database
-          touch database/database.sqlite
+          touch database/database.sqlite       
+          
+      - name: Prepare environment
+        run: cp .env.example .env
 
       - name: Generate application key
         run: php artisan key:generate
