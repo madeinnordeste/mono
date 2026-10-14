@@ -4,6 +4,7 @@ env:
   APP_ENV: testing
   DB_CONNECTION: sqlite
   DB_DATABASE: ${{ github.workspace }}/database/database.sqlite
+  APP_KEY: base64:4xSbYyU4TwxebulW/Y07N952ZB7J9DB/dp+Ermut+78=
 
 on:
   push:
@@ -43,9 +44,6 @@ jobs:
         run: |
           mkdir -p database
           touch database/database.sqlite       
-          
-      - name: Prepare environment
-        run: cp .env.example .env
 
       - name: Generate application key
         run: php artisan key:generate
